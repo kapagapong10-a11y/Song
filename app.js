@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js";
 import { getDatabase, ref, set, push, get, onValue, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-database.js";
 
-// Firebase Configuration จากผู้ใช้
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDS2Nol9xO6UzGXBv8mYbxyxc0nVp74oz8",
   authDomain: "song-5883e.firebaseapp.com",
@@ -22,12 +22,17 @@ let isLoginMode = true;
 let currentUserData = null;
 let currentRoomId = null;
 
-// ฟังก์ชันดึงวันที่ปัจจุบันรูปแบบไทย (สำหรับเช็คเที่ยงคืนเพื่อรีเซ็ตอัตโนมัติ)
+// --- ฟังก์ชันช่วยเหลือ ---
 function getThaiDateString() {
     return new Date().toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" });
 }
 
-// ระบบรีเซ็ตห้องอัตโนมัติเมื่อขึ้นวันใหม่ ป้องกัน Error ฐานข้อมูลว่างเปล่า
+// ฟังก์ชันกรองชื่อห้อง ป้องกัน Error จาก Firebase (ห้ามมี . # $ [ ])
+function sanitizeRoomId(name) {
+    // ลบจุดและอักขระพิเศษออก และเปลี่ยน / เป็น -
+    return name.replace(/[\.\#\$\[\]]/g, '').replace(/\//g, '-').trim();
+}
+
 function checkAndResetRoom(roomName) {
     const today = getThaiDateString();
     const roomRef = ref(db, `rooms/${roomName}`);
@@ -42,7 +47,7 @@ function checkAndResetRoom(roomName) {
     }).catch(err => console.error("Reset Check Error:", err));
 }
 
-// --- ผูกฟังก์ชันเข้ากับหน้าต่าง Window เพื่อแก้ไขปัญหาปุ่มกดไม่ทำงาน ---
+// --- UI Navigation ---
 window.switchView = (viewId) => {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
@@ -67,7 +72,7 @@ window.showAdminLogin = () => {
 window.showAddSong = () => { window.switchView('addSongView'); };
 window.showStudentView = () => { window.switchView('studentView'); };
 
-// --- ระบบยืนยันตัวตนและการสร้างฐานข้อมูลสมาชิก ---
+// --- Auth System ---
 window.handleAuth = async () => {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
@@ -79,29 +84,35 @@ window.handleAuth = async () => {
             await signInWithEmailAndPassword(auth, email, password);
         } else {
             const fullname = document.getElementById('fullname').value;
-            const classroom = document.getElementById('classroom').value.trim().replace(/\//g, '-'); 
+            const rawClassroom = document.getElementById('classroom').value; 
             const studentNo = document.getElementById('studentNo').value;
             
-            if(!fullname || !classroom || !studentNo) return alert("กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน");
+            if(!fullname || !rawClassroom || !studentNo) return alert("กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน");
+
+            // กรองชื่อห้องเพื่อป้องกัน Firebase Error
+            const classroom = sanitizeRoomId(rawClassroom);
 
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            // โครงสร้างฐานข้อมูลนักเรียนแบบอัตโนมัติเพื่อป้องกัน Error
             await set(ref(db, 'users/' + userCredential.user.uid), {
                 fullname: fullname,
                 classroom: classroom,
                 studentNo: parseInt(studentNo),
                 role: 'user'
             });
-            alert('สมัครสมาชิกและสร้างโปรไฟล์สำเร็จ!');
+            alert('สมัครสมาชิกสำเร็จ!');
+            // ล้างฟอร์ม
+            document.getElementById('fullname').value = '';
+            document.getElementById('classroom').value = '';
+            document.getElementById('studentNo').value = '';
+            document.getElementById('password').value = '';
         }
     } catch (error) {
-        alert("เกิดข้อผิดพลาดด้านความปลอดภัย: " + error.message);
+        alert("เกิดข้อผิดพลาด: " + error.message);
     }
 };
 
 window.logout = () => { signOut(auth); };
 
-// ตรวจสอบสถานะการเชื่อมต่อผู้ใช้แบบเรียลไทม์
 onAuthStateChanged(auth, (user) => {
     if (user) {
         get(ref(db, 'users/' + user.uid)).then((snapshot) => {
@@ -113,17 +124,17 @@ onAuthStateChanged(auth, (user) => {
                 } else {
                     window.switchView('studentView');
                     currentRoomId = currentUserData.classroom;
+                    // แสดงผลแบบเอา - กลับมาเป็น /
                     document.getElementById('studentRoomName').innerText = `ห้อง: ${currentRoomId.replace('-', '/')}`;
                     loadStudentRoom();
                 }
             } else {
-                // ตัวจัดการอัตโนมัติ: ถ้าเป็นแอดมินคนแรกแต่ยังไม่มีใน Node users ระบบจะสร้าง Role ให้ทันที
                 if(user.email === 'admin@admin.com'){
                      set(ref(db, 'users/' + user.uid), { role: 'admin', fullname: 'Administrator' });
                      window.switchView('adminView');
                      loadAdminData();
                 } else {
-                    alert("ไม่พบโครงสร้างข้อมูลผู้ใช้ของคุณ กรุณาสมัครสมาชิกใหม่");
+                    alert("ไม่พบข้อมูลผู้ใช้ของคุณ กรุณาสมัครสมาชิกใหม่");
                     signOut(auth);
                 }
             }
@@ -134,7 +145,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- ระบบของนักเรียน (การขอเพลงและการโหวต) ---
+// --- Student Logic ---
 function loadStudentRoom() {
     const roomRef = ref(db, `rooms/${currentRoomId}`);
     checkAndResetRoom(currentRoomId);
@@ -164,7 +175,6 @@ function loadSongs() {
                 songs.push({ id: child.key, ...child.val() });
             });
             
-            // เรียงลำดับโหวตจากสูงไปต่ำ
             songs.sort((a, b) => b.votes - a.votes);
 
             songs.forEach(song => {
@@ -184,7 +194,7 @@ function loadSongs() {
                 `;
             });
         } else {
-            songListDiv.innerHTML = '<p style="text-align:center; color:#fff; width:100%;">ยังไม่มีรายการขอเพลงในห้องนี้ มาร่วมขอเพลงแรกกันเลย!</p>';
+            songListDiv.innerHTML = '<p style="text-align:center; color:#fff; width:100%;">ยังไม่มีคนขอเพลงเลย แอดเพลงแรกเลย!</p>';
         }
     });
 }
@@ -223,21 +233,21 @@ window.voteSong = (songId) => {
                 song.voters[uid] = true;
                 song.votes++;
             } else {
-                alert("คุณโหวตเพลงนี้ไปแล้ว! สามารถโหวตได้เพลงละ 1 ครั้งเท่านั้น");
+                alert("คุณโหวตเพลงนี้ไปแล้ว!");
             }
         }
         return song;
     }).catch(err => console.error("Vote failed:", err));
 };
 
-// --- ระบบของแอดมิน (สร้างห้อง, ลบห้อง, ลบผู้ใช้งาน) ---
+// --- Admin Logic ---
 window.createRoom = () => {
-    let rawRoomName = document.getElementById('newRoomName').value.trim();
+    let rawRoomName = document.getElementById('newRoomName').value;
     if(!rawRoomName) return alert("กรุณากรอกชื่อห้องเรียนก่อนกดสร้าง");
     
-    const roomName = rawRoomName.replace(/\//g, '-'); 
+    // กรองชื่อห้องป้องกัน Error
+    const roomName = sanitizeRoomId(rawRoomName); 
     
-    // ตั้งค่าโครงสร้างห้องอัตโนมัติ
     set(ref(db, `rooms/${roomName}`), {
         createdAt: Date.now(),
         lastReset: getThaiDateString()
@@ -245,30 +255,26 @@ window.createRoom = () => {
         alert(`เปิดใช้งานห้อง ${rawRoomName} เรียบร้อยแล้ว`);
         document.getElementById('newRoomName').value = '';
     }).catch((error) => {
-        alert("ไม่สามารถสร้างห้องได้เนื่องจาก: " + error.message + " \n\n*คำแนะนำ: ตรวจสอบว่าเปิดสิทธิ์การเข้าถึงแบบ Read/Write ใน Realtime Database Rules หรือยัง*");
+        alert("สร้างห้องไม่สำเร็จ: " + error.message);
     });
 };
 
 window.deleteRoom = (roomName) => {
-    if(confirm(`คุณแน่ใจหรือไม่ที่จะลบห้อง "${roomName.replace('-', '/')}" และข้อมูลการขอเพลงทั้งหมดในห้องนี้?`)) {
-        // ลบห้องและลบเพลงย่อยในห้องทั้งหมดออกอย่างสมบูรณ์แบบอัตโนมัติ
+    if(confirm(`ลบห้อง "${roomName.replace('-', '/')}" และประวัติเพลงทั้งหมด?`)) {
         remove(ref(db, `rooms/${roomName}`))
             .then(() => remove(ref(db, `songs/${roomName}`)))
-            .then(() => alert("ลบห้องและประวัติเพลงสำเร็จ"))
             .catch(err => alert("ลบไม่สำเร็จ: " + err.message));
     }
 };
 
 window.deleteUser = (uid) => {
-    if(confirm('ต้องการลบข้อมูลสิทธิ์ของผู้ใช้นี้ออกจากระบบใช่หรือไม่? นักเรียนคนนี้จะไม่สามารถใช้งานระบบได้อีก')) {
+    if(confirm('ต้องการลบข้อมูลนักเรียนคนนี้ใช่หรือไม่?')) {
         remove(ref(db, `users/${uid}`))
-            .then(() => alert("ลบผู้ใช้งานออกจากฐานข้อมูลเรียบร้อย"))
             .catch(err => alert("ลบไม่สำเร็จ: " + err.message));
     }
 };
 
 function loadAdminData() {
-    // โหลดและเฝ้าสังเกตรายการห้อง + ปุ่มลบห้อง
     onValue(ref(db, 'rooms'), (snapshot) => {
         const adminRoomList = document.getElementById('adminRoomList');
         adminRoomList.innerHTML = '';
@@ -286,7 +292,6 @@ function loadAdminData() {
         }
     });
 
-    // โหลดข้อมูลรายชื่อผู้ใช้งานเพื่อกดลบ
     onValue(ref(db, 'users'), (snapshot) => {
         const adminUserList = document.getElementById('adminUserList');
         adminUserList.innerHTML = '';
@@ -299,7 +304,7 @@ function loadAdminData() {
                     hasUsers = true;
                     adminUserList.innerHTML += `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px 5px; border-bottom: 1px solid #eee;">
-                            <span style="color:#2d3436; font-size:14px;">${user.fullname} (${user.classroom ? user.classroom.replace('-','/') : 'ไม่ระบุ'}) เลขที่ ${user.studentNo || '-'}</span>
+                            <span style="color:#2d3436; font-size:14px;">${user.fullname} (${user.classroom ? user.classroom.replace('-','/') : ''})</span>
                             <button onclick="deleteUser('${child.key}')" style="background:#ff7675; color:white; border:none; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px;"><i class="fas fa-user-slash"></i> ลบ</button>
                         </div>
                     `;
@@ -307,7 +312,7 @@ function loadAdminData() {
             });
         }
         if(!hasUsers) {
-            adminUserList.innerHTML = '<p style="color:#777; text-align:center;">ยังไม่มีนักเรียนสมัครสมาชิกเข้าสู่ระบบ</p>';
+            adminUserList.innerHTML = '<p style="color:#777; text-align:center;">ยังไม่มีนักเรียนในระบบ</p>';
         }
     });
 }

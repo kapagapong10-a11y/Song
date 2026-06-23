@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Song Request App</title>
+    <title>Song Request App - V2</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -21,7 +21,7 @@
         body {
             background: var(--bg-gradient);
             min-height: 100vh;
-            color: #333; 
+            color: #333;
             display: flex;
             justify-content: center;
             overflow-x: hidden;
@@ -29,7 +29,7 @@
 
         .app-container {
             width: 100%;
-            max-width: 480px; /* Mobile layout */
+            max-width: 480px;
             min-height: 100vh;
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
@@ -133,11 +133,10 @@
             <i class="fas fa-sign-out-alt logout-icon" onclick="logout()"></i>
         </div>
         <div style="padding: 20px;">
-            <div id="noRoomAlert" class="glass-card" style="display: none; text-align: center; color: #d63031;">
-                แอดมินยังไม่ได้สร้างห้องขอเพลงสำหรับชั้นเรียนของคุณ
+            <div id="noRoomAlert" class="glass-card" style="display: none; text-align: center; color: #d63031; background: rgba(255,255,255,0.8);">
+                แอดมินยังไม่ได้เปิดห้องขอเพลงสำหรับชั้นเรียนของคุณในวันนี้
             </div>
-            <div class="song-list" id="songList">
-                </div>
+            <div class="song-list" id="songList"></div>
         </div>
         <button class="fab" onclick="showAddSong()"><i class="fas fa-plus"></i></button>
     </div>
@@ -163,17 +162,21 @@
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px;">จัดการห้องขอเพลง</h3>
                 <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น ม.1/2">
-                <button class="btn" onclick="createRoom()">สร้างเปิดห้อง</button>
+                <button class="btn" onclick="createRoom()">สร้างและเปิดห้อง</button>
             </div>
             
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px;">รายชื่อห้องที่เปิดอยู่</h3>
-                <div id="adminRoomList" style="background: white; border-radius: 10px; padding: 10px;"></div>
+                <div id="adminRoomList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                    <p style="color:#777; text-align:center;">กำลังโหลดข้อมูล...</p>
+                </div>
             </div>
 
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px;">จัดการผู้ใช้งาน</h3>
-                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;"></div>
+                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
+                    <p style="color:#777; text-align:center;">กำลังโหลดข้อมูล...</p>
+                </div>
             </div>
         </div>
     </div>

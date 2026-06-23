@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Song Request App - Smart V4</title>
+    <title>Song Request App - Smart V5</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -70,10 +70,8 @@
         .btn-danger { background: #ff7675; box-shadow: 0 4px 15px rgba(255, 118, 117, 0.4); }
         .btn-text { background: transparent; color: #fff; box-shadow: none; text-decoration: underline; margin-top: 10px; }
 
-        /* Admin Main Menu */
-        .admin-menu-grid {
-            display: flex; flex-direction: column; gap: 15px; margin-top: 20px;
-        }
+        /* Admin Menus & Cards */
+        .admin-menu-grid { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
         .admin-menu-btn {
             background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
             border: 1px solid var(--glass-border); border-radius: 20px;
@@ -86,10 +84,7 @@
         .admin-menu-btn h3 { font-size: 20px; margin-bottom: 5px; }
         .admin-menu-btn p { font-size: 14px; opacity: 0.9; }
 
-        /* Admin Room Cards */
-        .room-grid {
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px;
-        }
+        .room-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px; }
         .room-card {
             background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%);
             border-radius: 15px; padding: 20px 15px; text-align: center;
@@ -99,7 +94,7 @@
         .room-card:active { transform: scale(0.95); }
         .room-card h4 { font-size: 18px; margin-top: 5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
 
-        /* Song Cards */
+        /* Song Items */
         .song-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 80px; }
         .song-item {
             display: flex; justify-content: space-between; align-items: center;
@@ -140,11 +135,37 @@
             color: #fff; font-weight: 500;
         }
         .logout-icon { cursor: pointer; font-size: 20px; }
+
+        /* --- Custom Alert Popup Style --- */
+        .custom-alert-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; opacity: 0; pointer-events: none; transition: 0.3s ease;
+        }
+        .custom-alert-overlay.show { opacity: 1; pointer-events: auto; }
+        .custom-alert-box {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 20px; padding: 25px 20px; width: 85%; max-width: 320px;
+            text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transform: scale(0.8); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .custom-alert-overlay.show .custom-alert-box { transform: scale(1); }
+        .custom-alert-icon { font-size: 50px; margin-bottom: 10px; }
+        .custom-alert-icon.success { color: #00b894; }
+        .custom-alert-icon.error { color: #d63031; }
+        .custom-alert-icon.info { color: #0984e3; }
+        .custom-alert-icon.warning { color: #fdcb6e; }
+        .custom-alert-box h3 { color: #2d3436; margin-bottom: 10px; font-size: 20px; }
+        .custom-alert-box p { color: #636e72; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+        .custom-alert-btn-group { display: flex; gap: 10px; }
     </style>
 </head>
 <body>
 
 <div class="app-container">
+    
     <div id="authView" class="view active">
         <div class="glass-card" style="margin-top: 50px;">
             <h2 id="authTitle">เข้าสู่ระบบ</h2>
@@ -223,8 +244,7 @@
         <div style="padding: 20px;">
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px; font-size: 16px;">ห้องที่เปิดอยู่ (กดเพื่อดูเพลง)</h3>
-                <div id="adminRoomGrid" class="room-grid">
-                    </div>
+                <div id="adminRoomGrid" class="room-grid"></div>
             </div>
         </div>
     </div>
@@ -240,8 +260,7 @@
             <div class="glass-card" style="background: rgba(255,255,255,0.8); text-align: center; padding: 10px;">
                 รายชื่อเพลงเรียงตามผลโหวต
             </div>
-            <div class="song-list" id="adminRoomSongList">
-                </div>
+            <div class="song-list" id="adminRoomSongList"></div>
         </div>
     </div>
 
@@ -261,18 +280,28 @@
             
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px; font-size: 16px;">ห้องที่เปิดอยู่ (กดเพื่อลบ)</h3>
-                <div id="adminRoomListSystem" style="background: white; border-radius: 10px; padding: 10px; max-height: 150px; overflow-y: auto;">
-                    </div>
+                <div id="adminRoomListSystem" style="background: white; border-radius: 10px; padding: 10px; max-height: 150px; overflow-y: auto;"></div>
             </div>
 
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px; font-size: 16px;">รายชื่อนักเรียนในระบบ</h3>
-                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
-                    </div>
+                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;"></div>
             </div>
         </div>
     </div>
 
+</div>
+
+<div id="customAlert" class="custom-alert-overlay">
+    <div class="custom-alert-box">
+        <div class="custom-alert-icon" id="alertIcon"><i class="fas fa-info-circle"></i></div>
+        <h3 id="alertTitle">แจ้งเตือน</h3>
+        <p id="alertMessage">ข้อความแจ้งเตือน</p>
+        <div class="custom-alert-btn-group">
+            <button class="btn" id="alertOkBtn" style="flex: 1;">ตกลง</button>
+            <button class="btn btn-danger" id="alertCancelBtn" style="flex: 1; display: none;">ยกเลิก</button>
+        </div>
+    </div>
 </div>
 
 <script type="module" src="app.js"></script>

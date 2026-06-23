@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Song Request App - V2</title>
+    <title>Song Request App - V3 (YouTube Ready)</title>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -18,35 +18,9 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Prompt', sans-serif; }
         
-        body {
-            background: var(--bg-gradient);
-            min-height: 100vh;
-            color: #333;
-            display: flex;
-            justify-content: center;
-            overflow-x: hidden;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 480px;
-            min-height: 100vh;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: var(--glass-shadow);
-            margin-bottom: 15px;
-        }
+        body { background: var(--bg-gradient); min-height: 100vh; color: #333; display: flex; justify-content: center; overflow-x: hidden; }
+        .app-container { width: 100%; max-width: 480px; min-height: 100vh; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); display: flex; flex-direction: column; position: relative; }
+        .glass-card { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px; box-shadow: var(--glass-shadow); margin-bottom: 15px; }
 
         /* Views */
         .view { display: none; padding: 20px; animation: fadeIn 0.3s ease; }
@@ -55,60 +29,39 @@
 
         /* Typography & Inputs */
         h2 { text-align: center; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); margin-bottom: 20px; }
-        input, select {
-            width: 100%; padding: 12px 15px; margin-bottom: 15px;
-            border-radius: 12px; border: none; outline: none;
-            background: rgba(255,255,255,0.8); font-size: 16px;
-        }
+        input { width: 100%; padding: 12px 15px; margin-bottom: 15px; border-radius: 12px; border: none; outline: none; background: rgba(255,255,255,0.8); font-size: 16px; }
         
-        .btn {
-            width: 100%; padding: 12px; border: none; border-radius: 12px;
-            background: var(--primary); color: white; font-size: 16px; font-weight: 500;
-            cursor: pointer; transition: 0.2s; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
-        }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 12px; background: var(--primary); color: white; font-size: 16px; font-weight: 500; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); }
         .btn:active { transform: scale(0.98); }
-        .btn-danger { background: #ff7675; box-shadow: 0 4px 15px rgba(255, 118, 117, 0.4); }
         .btn-text { background: transparent; color: #fff; box-shadow: none; text-decoration: underline; margin-top: 10px; }
 
         /* Song Cards */
         .song-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 80px; }
-        .song-item {
-            display: flex; justify-content: space-between; align-items: center;
-            background: rgba(255,255,255,0.6); border-radius: 15px; padding: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        }
+        .song-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.7); border-radius: 15px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         .song-info h4 { margin: 0; color: #2d3436; font-size: 16px; }
         .song-info p { margin: 0; color: #636e72; font-size: 13px; }
-        .vote-btn {
-            background: #ffeaa7; border: none; border-radius: 50%;
-            width: 45px; height: 45px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; cursor: pointer;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1); color: #fdcb6e; transition: 0.2s;
-        }
+        
+        .vote-btn { background: #ffeaa7; border: none; border-radius: 50%; width: 45px; height: 45px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.1); color: #fdcb6e; transition: 0.2s; }
         .vote-btn.voted { background: #fdcb6e; color: #fff; }
-        .vote-btn i { font-size: 16px; }
         .vote-btn span { font-size: 12px; font-weight: bold; margin-top: -2px; }
 
-        /* Floating Add Button */
-        .fab {
-            position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px;
-            background: var(--primary); color: white; border-radius: 50%;
-            display: flex; justify-content: center; align-items: center; font-size: 24px;
-            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.5); border: none; cursor: pointer; z-index: 100;
-        }
+        /* Admin Room Cards */
+        .room-card-item { background: rgba(255,255,255,0.8); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+        .room-card-item:hover { border-color: var(--primary); transform: translateY(-2px); }
+        
+        /* YouTube Button */
+        .btn-youtube { background: #ff0000; color: white; border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; box-shadow: 0 3px 8px rgba(255,0,0,0.3); }
+        .btn-youtube:hover { background: #cc0000; }
 
-        /* Top Bar */
-        .top-bar {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 15px 20px; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px);
-            color: #fff; font-weight: 500;
-        }
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: var(--primary); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.5); border: none; cursor: pointer; z-index: 100; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: #fff; font-weight: 500; }
         .logout-icon { cursor: pointer; font-size: 20px; }
     </style>
 </head>
 <body>
 
 <div class="app-container">
+    <!-- หน้าล็อกอิน -->
     <div id="authView" class="view active">
         <div class="glass-card" style="margin-top: 50px;">
             <h2 id="authTitle">เข้าสู่ระบบ</h2>
@@ -127,6 +80,7 @@
         </div>
     </div>
 
+    <!-- หน้าหลักนักเรียน -->
     <div id="studentView" class="view">
         <div class="top-bar">
             <span id="studentRoomName">ห้อง: -</span>
@@ -141,6 +95,7 @@
         <button class="fab" onclick="showAddSong()"><i class="fas fa-plus"></i></button>
     </div>
 
+    <!-- หน้าเพิ่มเพลง -->
     <div id="addSongView" class="view">
         <div class="top-bar">
             <span>เพิ่มเพลงใหม่</span>
@@ -153,6 +108,7 @@
         </div>
     </div>
 
+    <!-- หน้า Dashboard แอดมิน (แสดงการ์ดห้อง) -->
     <div id="adminView" class="view">
         <div class="top-bar" style="background: rgba(0,0,0,0.5);">
             <span>Admin Dashboard</span>
@@ -160,26 +116,39 @@
         </div>
         <div style="padding: 20px;">
             <div class="glass-card">
-                <h3 style="color:white; margin-bottom: 10px;">จัดการห้องขอเพลง</h3>
+                <h3 style="color:white; margin-bottom: 10px;">เปิดห้องขอเพลงใหม่</h3>
                 <input type="text" id="newRoomName" placeholder="ชื่อห้อง เช่น ม.1/2">
                 <button class="btn" onclick="createRoom()">สร้างและเปิดห้อง</button>
             </div>
             
             <div class="glass-card">
-                <h3 style="color:white; margin-bottom: 10px;">รายชื่อห้องที่เปิดอยู่</h3>
-                <div id="adminRoomList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
-                    <p style="color:#777; text-align:center;">กำลังโหลดข้อมูล...</p>
+                <h3 style="color:white; margin-bottom: 10px;">รายชื่อห้อง (คลิกเข้าดูเพลง)</h3>
+                <div id="adminRoomList" style="max-height: 250px; overflow-y: auto;">
+                    <p style="color:#fff; text-align:center;">กำลังโหลด...</p>
                 </div>
             </div>
 
             <div class="glass-card">
                 <h3 style="color:white; margin-bottom: 10px;">จัดการผู้ใช้งาน</h3>
-                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 200px; overflow-y: auto;">
-                    <p style="color:#777; text-align:center;">กำลังโหลดข้อมูล...</p>
-                </div>
+                <div id="adminUserList" style="background: white; border-radius: 10px; padding: 10px; max-height: 180px; overflow-y: auto;"></div>
             </div>
         </div>
     </div>
+
+    <!-- [NEW] หน้าเจาะลึกดูเพลงในห้องของแอดมิน -->
+    <div id="adminRoomDetailView" class="view">
+        <div class="top-bar" style="background: rgba(0,0,0,0.7);">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <i class="fas fa-arrow-left logout-icon" onclick="switchView('adminView')"></i>
+                <span id="detailRoomTitle">ห้อง: -</span>
+            </div>
+            <i class="fas fa-sign-out-alt logout-icon" onclick="logout()"></i>
+        </div>
+        <div style="padding: 20px;">
+            <div class="song-list" id="adminSongDetailList"></div>
+        </div>
+    </div>
+
 </div>
 
 <script type="module" src="app.js"></script>

@@ -20,7 +20,7 @@ const db = getDatabase(app);
 let isLoginMode = true;
 let currentUserData = null;
 let currentRoomId = null;
-let isSigningUp = false; // ตัวแปรป้องกัน Race Condition ตอนสมัครสมาชิก
+let isSigningUp = false; 
 
 // ==========================================
 // 🎨 ระบบ Custom Alert & Confirm สวยงาม
@@ -76,7 +76,7 @@ window.showConfirm = (message) => {
 };
 
 // ==========================================
-// 🧠 SMART PARSER
+// 🧠 SMART PARSER & ⏰ TIME RESET
 // ==========================================
 function formatDbRoom(input) {
     if (!input) return "";
@@ -92,22 +92,31 @@ function displayRoom(dbRoom) {
     return `ม.${dbRoom.replace('-', '/')}`;
 }
 
+// ล็อกฟอร์แมตวันที่ให้เป็น YYYY-MM-DD เสมอเพื่อแก้บั๊กข้ามวัน
 function getThaiDateString() {
-    return new Date().toLocaleDateString("en-US", { timeZone: "Asia/Bangkok" });
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    return formatter.format(new Date()); 
 }
 
-function checkAndResetRoom(roomName) {
+// ฟังก์ชันเช็คและรีเซ็ตข้อมูลตอนเที่ยงคืนแบบเข้มงวด
+async function checkMidnightReset(roomId) {
     const today = getThaiDateString();
-    const roomRef = ref(db, `rooms/${roomName}`);
-    get(roomRef).then((snapshot) => {
-        if (snapshot.exists()) {
-            const roomData = snapshot.val();
-            if (roomData.lastReset !== today) {
-                remove(ref(db, `songs/${roomName}`));
-                update(ref(db, `rooms/${roomName}`), { lastReset: today });
-            }
+    const roomRef = ref(db, `rooms/${roomId}`);
+    const snapshot = await get(roomRef);
+    if (snapshot.exists()) {
+        const roomData = snapshot.val();
+        if (roomData.lastReset !== today) {
+            await remove(ref(db, `songs/${roomId}`));
+            await update(ref(db, `rooms/${roomId}`), { lastReset: today });
+            return true; // เกิดการรีเซ็ต
         }
-    }).catch(err => console.error("Reset Check Error:", err));
+    }
+    return false; // ไม่มีการรีเซ็ต
 }
 
 // --- UI Navigation ---
@@ -155,7 +164,6 @@ window.handleAuth = async () => {
             const classroom = formatDbRoom(rawClassroom);
             if(!classroom) return showAlert("รูปแบบชั้นเรียนไม่ถูกต้อง", "error");
 
-            // ล็อก Observer เพื่อป้องกันมันเช็คข้อมูลก่อนเขียน DB เสร็จ
             isSigningUp = true; 
             
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -166,7 +174,7 @@ window.handleAuth = async () => {
                 role: 'user'
             });
             
-            isSigningUp = false; // ปลดล็อก
+            isSigningUp = false; 
             showAlert('สมัครสมาชิกสำเร็จ!', 'success');
             
             document.getElementById('fullname').value = '';
@@ -174,7 +182,6 @@ window.handleAuth = async () => {
             document.getElementById('studentNo').value = '';
             document.getElementById('password').value = '';
             
-            // สั่งรันเช็คสิทธิ์แบบแมนนวลเพื่อพานักเรียนเข้าระบบ
             checkUserRoleAndRoute(userCredential.user);
         }
     } catch (error) {
@@ -186,7 +193,6 @@ window.handleAuth = async () => {
 window.logout = () => { signOut(auth); };
 
 onAuthStateChanged(auth, (user) => {
-    // ถ้าระบบกำลังเขียนฐานข้อมูลสมัครสมาชิกอยู่ ให้รอเงียบๆ ไม่ต้องรีบเช็ค
     if (isSigningUp) return; 
 
     if (user) {
@@ -197,7 +203,6 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// ฟังก์ชันแยกสำหรับเช็คสิทธิ์หลังจากล็อกอินหรือสมัครสมาชิกเสร็จแล้ว
 function checkUserRoleAndRoute(user) {
     get(ref(db, 'users/' + user.uid)).then((snapshot) => {
         if (snapshot.exists()) {
@@ -227,18 +232,20 @@ function checkUserRoleAndRoute(user) {
 // --- Student Logic ---
 function loadStudentRoom() {
     const roomRef = ref(db, `rooms/${currentRoomId}`);
-    checkAndResetRoom(currentRoomId);
-
-    onValue(roomRef, (snapshot) => {
-        if (snapshot.exists()) {
-            document.getElementById('noRoomAlert').style.display = 'none';
-            document.getElementById('songList').style.display = 'flex';
-            loadSongs();
-        } else {
-            document.getElementById('noRoomAlert').style.display = 'block';
-            document.getElementById('songList').style.display = 'none';
-            document.getElementById('songList').innerHTML = '';
-        }
+    
+    // ตรวจสอบและรีเซ็ตเที่ยงคืนก่อนโหลด
+    checkMidnightReset(currentRoomId).then(() => {
+        onValue(roomRef, (snapshot) => {
+            if (snapshot.exists()) {
+                document.getElementById('noRoomAlert').style.display = 'none';
+                document.getElementById('songList').style.display = 'flex';
+                loadSongs();
+            } else {
+                document.getElementById('noRoomAlert').style.display = 'block';
+                document.getElementById('songList').style.display = 'none';
+                document.getElementById('songList').innerHTML = '';
+            }
+        });
     });
 }
 
@@ -281,6 +288,9 @@ window.addSong = async () => {
     if(!title || !artist) return showAlert("กรุณากรอกข้อมูลเพลงให้ครบถ้วน", "error");
 
     try {
+        // เช็คการข้ามวันก่อนเพิ่มเพลง เพื่อป้องกันการบันทึกทับผิดเวลา
+        await checkMidnightReset(currentRoomId);
+
         await push(ref(db, `songs/${currentRoomId}`), {
             title: title,
             artist: artist,
@@ -297,17 +307,28 @@ window.addSong = async () => {
     }
 };
 
-window.voteSong = (songId) => {
+window.voteSong = async (songId) => {
+    // เช็คการข้ามวันก่อนโหวต
+    const wasReset = await checkMidnightReset(currentRoomId);
+    if (wasReset) {
+        showAlert("ข้อมูลถูกรีเซ็ตเนื่องจากขึ้นวันใหม่แล้ว กรุณาขอเพลงใหม่", "info");
+        return;
+    }
+
     const songRef = ref(db, `songs/${currentRoomId}/${songId}`);
     const uid = auth.currentUser.uid;
+    
     runTransaction(songRef, (song) => {
         if (song) {
             if (!song.voters) song.voters = {};
-            if (!song.voters[uid]) {
+            if (song.voters[uid]) {
+                // หากเคยกดแล้ว ให้ยกเลิกโหวต (ดึงคะแนนคืนได้)
+                song.voters[uid] = null;
+                song.votes--;
+            } else {
+                // หากยังไม่กด ให้เพิ่มโหวต
                 song.voters[uid] = true;
                 song.votes++;
-            } else {
-                showAlert("คุณโหวตเพลงนี้ไปแล้ว!", "warning");
             }
         }
         return song;
@@ -324,14 +345,13 @@ window.createRoom = () => {
     
     set(ref(db, `rooms/${roomName}`), {
         createdAt: Date.now(),
-        lastReset: getThaiDateString()
+        lastReset: getThaiDateString() // บันทึกเวลาแบบใหม่ YYYY-MM-DD
     }).then(() => {
         showAlert(`เปิดใช้งานห้อง ${displayRoom(roomName)} เรียบร้อยแล้ว`, "success");
         document.getElementById('newRoomName').value = '';
     });
 };
 
-// ใช้ async/await สำหรับการรอผู้ใช้กดยืนยันใน Custom Popup
 window.deleteRoom = async (roomName) => {
     const isConfirmed = await showConfirm(`ยืนยันการลบห้อง "${displayRoom(roomName)}" และประวัติเพลงทั้งหมด?`);
     if(isConfirmed) {
@@ -412,36 +432,39 @@ window.viewRoomAdmin = (roomId) => {
     document.getElementById('adminDetailRoomName').innerText = `ห้อง: ${displayRoom(roomId)}`;
     window.switchView('adminRoomDetailsView');
     
-    const songsRef = ref(db, `songs/${roomId}`);
-    onValue(songsRef, (snapshot) => {
-        if(document.getElementById('adminRoomDetailsView').classList.contains('active')) {
-            const adminSongListDiv = document.getElementById('adminRoomSongList');
-            adminSongListDiv.innerHTML = '';
-            
-            if (snapshot.exists()) {
-                const songs = [];
-                snapshot.forEach(child => { songs.push({ id: child.key, ...child.val() }); });
-                songs.sort((a, b) => b.votes - a.votes);
+    // แอดมินกดเข้ามาดูห้องก็ให้ระบบเช็คข้ามวันด้วย
+    checkMidnightReset(roomId).then(() => {
+        const songsRef = ref(db, `songs/${roomId}`);
+        onValue(songsRef, (snapshot) => {
+            if(document.getElementById('adminRoomDetailsView').classList.contains('active')) {
+                const adminSongListDiv = document.getElementById('adminRoomSongList');
+                adminSongListDiv.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    const songs = [];
+                    snapshot.forEach(child => { songs.push({ id: child.key, ...child.val() }); });
+                    songs.sort((a, b) => b.votes - a.votes);
 
-                songs.forEach(song => {
-                    const searchQuery = `${song.title} ${song.artist}`;
-                    adminSongListDiv.innerHTML += `
-                        <div class="song-item">
-                            <div class="song-info">
-                                <h4>${song.title} <span style="color:#e17055; font-size: 12px;">(โหวต: ${song.votes})</span></h4>
-                                <p><i class="fas fa-microphone"></i> ${song.artist}</p>
-                                <p style="font-size:10px; color:#b2bec3;">เสนอโดย: ${song.addedByName || 'นักเรียน'}</p>
+                    songs.forEach(song => {
+                        const searchQuery = `${song.title} ${song.artist}`;
+                        adminSongListDiv.innerHTML += `
+                            <div class="song-item">
+                                <div class="song-info">
+                                    <h4>${song.title} <span style="color:#e17055; font-size: 12px;">(โหวต: ${song.votes})</span></h4>
+                                    <p><i class="fas fa-microphone"></i> ${song.artist}</p>
+                                    <p style="font-size:10px; color:#b2bec3;">เสนอโดย: ${song.addedByName || 'นักเรียน'}</p>
+                                </div>
+                                <button class="btn-youtube" onclick="searchYouTube('${searchQuery}')">
+                                    <i class="fab fa-youtube"></i> ค้นหา
+                                </button>
                             </div>
-                            <button class="btn-youtube" onclick="searchYouTube('${searchQuery}')">
-                                <i class="fab fa-youtube"></i> ค้นหา
-                            </button>
-                        </div>
-                    `;
-                });
-            } else {
-                adminSongListDiv.innerHTML = '<p style="text-align:center; color:#333; width:100%;">ยังไม่มีคนขอเพลงในห้องนี้</p>';
+                        `;
+                    });
+                } else {
+                    adminSongListDiv.innerHTML = '<p style="text-align:center; color:#333; width:100%;">ยังไม่มีคนขอเพลงในห้องนี้</p>';
+                }
             }
-        }
+        });
     });
 };
 

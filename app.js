@@ -23,7 +23,7 @@ let currentRoomId = null;
 let isSigningUp = false; 
 
 // ==========================================
-// 🎨 ระบบ Custom Alert & Confirm สวยงาม
+// 🎨 ระบบ Custom Alert & Confirm
 // ==========================================
 window.showAlert = (message, type = 'info') => {
     const overlay = document.getElementById('customAlert');
@@ -76,7 +76,7 @@ window.showConfirm = (message) => {
 };
 
 // ==========================================
-// 🧠 SMART PARSER & ⏰ TIME RESET
+// 🧠 SMART PARSER & ⏰ TIME RESET (ฉบับแก้ไข)
 // ==========================================
 function formatDbRoom(input) {
     if (!input) return "";
@@ -92,31 +92,40 @@ function displayRoom(dbRoom) {
     return `ม.${dbRoom.replace('-', '/')}`;
 }
 
-// ล็อกฟอร์แมตวันที่ให้เป็น YYYY-MM-DD เสมอเพื่อแก้บั๊กข้ามวัน
+// ✅ ฟังก์ชันคำนวณเวลาไทยด้วยสมการ เพื่อป้องกันปัญหามือถืออ่านฟอร์แมตวันที่ไม่เหมือนกัน
 function getThaiDateString() {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Bangkok',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
-    return formatter.format(new Date()); 
+    const d = new Date();
+    const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+    const thaiTime = new Date(utc + (3600000 * 7)); // บวก 7 ชั่วโมงสำหรับประเทศไทย
+    const year = thaiTime.getFullYear();
+    const month = String(thaiTime.getMonth() + 1).padStart(2, '0');
+    const date = String(thaiTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${date}`; // ออกมาเป็น 2026-06-24 เสมอ 100%
 }
 
-// ฟังก์ชันเช็คและรีเซ็ตข้อมูลตอนเที่ยงคืนแบบเข้มงวด
+// ✅ ฟังก์ชันตรวจจับเที่ยงคืนแบบปลอดภัยที่สุด
 async function checkMidnightReset(roomId) {
     const today = getThaiDateString();
     const roomRef = ref(db, `rooms/${roomId}`);
     const snapshot = await get(roomRef);
+    
     if (snapshot.exists()) {
         const roomData = snapshot.val();
+        
+        // ถ้าห้องยังไม่มีการบันทึกวันที่ ให้บันทึกไว้และข้ามการลบเพลงไปก่อน
+        if (!roomData.lastReset) {
+            await update(roomRef, { lastReset: today });
+            return false;
+        }
+        
+        // ถ้ารูปแบบวันที่ไม่ตรงกันเป๊ะๆ แปลว่าขึ้นวันใหม่แล้ว ให้ลบเพลงทิ้ง
         if (roomData.lastReset !== today) {
             await remove(ref(db, `songs/${roomId}`));
-            await update(ref(db, `rooms/${roomId}`), { lastReset: today });
-            return true; // เกิดการรีเซ็ต
+            await update(roomRef, { lastReset: today });
+            return true;
         }
     }
-    return false; // ไม่มีการรีเซ็ต
+    return false;
 }
 
 // --- UI Navigation ---
@@ -233,7 +242,6 @@ function checkUserRoleAndRoute(user) {
 function loadStudentRoom() {
     const roomRef = ref(db, `rooms/${currentRoomId}`);
     
-    // ตรวจสอบและรีเซ็ตเที่ยงคืนก่อนโหลด
     checkMidnightReset(currentRoomId).then(() => {
         onValue(roomRef, (snapshot) => {
             if (snapshot.exists()) {
@@ -288,7 +296,6 @@ window.addSong = async () => {
     if(!title || !artist) return showAlert("กรุณากรอกข้อมูลเพลงให้ครบถ้วน", "error");
 
     try {
-        // เช็คการข้ามวันก่อนเพิ่มเพลง เพื่อป้องกันการบันทึกทับผิดเวลา
         await checkMidnightReset(currentRoomId);
 
         await push(ref(db, `songs/${currentRoomId}`), {
@@ -307,8 +314,8 @@ window.addSong = async () => {
     }
 };
 
+// ✅ ระบบโหวตใหม่: 1 คนโหวตได้หลายเพลง และกดยกเลิกโหวตตัวเองได้
 window.voteSong = async (songId) => {
-    // เช็คการข้ามวันก่อนโหวต
     const wasReset = await checkMidnightReset(currentRoomId);
     if (wasReset) {
         showAlert("ข้อมูลถูกรีเซ็ตเนื่องจากขึ้นวันใหม่แล้ว กรุณาขอเพลงใหม่", "info");
@@ -321,12 +328,13 @@ window.voteSong = async (songId) => {
     runTransaction(songRef, (song) => {
         if (song) {
             if (!song.voters) song.voters = {};
+            
             if (song.voters[uid]) {
-                // หากเคยกดแล้ว ให้ยกเลิกโหวต (ดึงคะแนนคืนได้)
+                // ถ้าเคยกดแล้ว ให้ยกเลิกโหวตและลบแต้ม
                 song.voters[uid] = null;
                 song.votes--;
             } else {
-                // หากยังไม่กด ให้เพิ่มโหวต
+                // ถ้ายังไม่เคยกดที่เพลงนี้ ให้เพิ่มโหวตและบวกแต้ม
                 song.voters[uid] = true;
                 song.votes++;
             }
@@ -345,7 +353,7 @@ window.createRoom = () => {
     
     set(ref(db, `rooms/${roomName}`), {
         createdAt: Date.now(),
-        lastReset: getThaiDateString() // บันทึกเวลาแบบใหม่ YYYY-MM-DD
+        lastReset: getThaiDateString() 
     }).then(() => {
         showAlert(`เปิดใช้งานห้อง ${displayRoom(roomName)} เรียบร้อยแล้ว`, "success");
         document.getElementById('newRoomName').value = '';
@@ -432,7 +440,6 @@ window.viewRoomAdmin = (roomId) => {
     document.getElementById('adminDetailRoomName').innerText = `ห้อง: ${displayRoom(roomId)}`;
     window.switchView('adminRoomDetailsView');
     
-    // แอดมินกดเข้ามาดูห้องก็ให้ระบบเช็คข้ามวันด้วย
     checkMidnightReset(roomId).then(() => {
         const songsRef = ref(db, `songs/${roomId}`);
         onValue(songsRef, (snapshot) => {
